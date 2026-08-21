@@ -1,0 +1,100 @@
+@import "tailwindcss";
+
+@theme {
+  /* Color System - Clean Dark Theme */
+  --color-bg-primary: #0c0c11;
+  --color-bg-secondary: #131318;
+  --color-bg-tertiary: #1a1a21;
+  --color-bg-card: #15151c;
+  --color-bg-elevated: #1c1c25;
+  --color-bg-hover: #22222e;
+
+  --color-border-primary: #25253200;
+  --color-border-secondary: #2e2e3e;
+  --color-border-accent: #4f46e5;
+
+  --color-text-primary: #ededf0;
+  --color-text-secondary: #8e8ea0;
+  --color-text-tertiary: #62627a;
+  --color-text-muted: #464660;
+
+  /* Accent Colors */
+  --color-accent-primary: #6366f1;
+  --color-accent-secondary: #818cf8;
+
+  /* Status Colors */
+  --color-status-success: #10b981;
+  --color-status-warning: #f59e0b;
+  --color-status-error: #ef4444;
+  --color-status-info: #3b82f6;
+
+  /* Kanban Stage Colors */
+  --color-stage-wishlist: #6366f1;
+  --color-stage-preparing: #8b5cf6;
+  --color-stage-applied: #3b82f6;
+  --color-stage-oa: #f59e0b;
+  --color-stage-technical: #f97316;
+  --color-stage-hr: #ec4899;
+  --color-stage-offer: #10b981;
+  --color-stage-accepted: #059669;
+  --color-stage-rejected: #ef4444;
+
+  /* Priority Colors */
+  --color-priority-low: #6b7280;
+  --color-priority-medium: #3b82f6;
+  --color-priority-high: #f59e0b;
+  --color-priority-critical: #ef4444;
+
+  /* Shadows — minimal */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.15);
+  --shadow-elevated: 0 4px 12px rgba(0, 0, 0, 0.25);
+
+  /* Fonts */
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Global Styles */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-secondary);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-tertiary);
+}
+
+/* Subtle fade-in — opacity only */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out forwards;
+}
