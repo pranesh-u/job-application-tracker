@@ -2,7 +2,7 @@ import mammoth from "mammoth";
 
 /**
  * Extracts raw text from PDF, DOCX, or TXT buffer.
- * Uses pdfjs-dist (Mozilla PDF.js) directly for reliable serverless PDF parsing.
+ * Uses `unpdf` for PDF extraction — purpose-built for serverless/edge runtimes.
  */
 export async function extractTextFromBuffer(
   buffer: Buffer,
@@ -33,35 +33,25 @@ export async function extractTextFromBuffer(
 }
 
 /**
- * Extract text from a PDF buffer using pdfjs-dist (Mozilla PDF.js).
- * Uses the legacy build which does not require a worker thread — ideal for serverless.
+ * Extract text from a PDF buffer using unpdf.
+ * unpdf is specifically built for serverless/edge runtimes (no worker, no native deps).
  */
 async function extractPdfText(buffer: Buffer): Promise<string | null> {
   try {
-    // Use legacy build (no web worker required — works in Node.js & serverless)
-    const pdfjsLib = require("pdfjs-dist/legacy/build/pdf.mjs");
+    const { extractText } = await import("unpdf");
 
+    // unpdf requires Uint8Array, not Buffer
     const data = new Uint8Array(buffer);
-    const doc = await pdfjsLib.getDocument({
-      data,
-      useSystemFonts: true,
-    }).promise;
+    const result = await extractText(data);
 
-    const pageTexts: string[] = [];
+    // result.text is an array of strings (one per page)
+    const fullText = Array.isArray(result.text)
+      ? result.text.join("\n").trim()
+      : String(result.text || "").trim();
 
-    for (let i = 1; i <= doc.numPages; i++) {
-      const page = await doc.getPage(i);
-      const content = await page.getTextContent();
-      const pageText = content.items
-        .map((item: any) => item.str)
-        .join(" ");
-      pageTexts.push(pageText);
-    }
-
-    const fullText = pageTexts.join("\n").trim();
     return fullText.length > 0 ? fullText : null;
   } catch (error) {
-    console.error("pdfjs-dist extraction error:", error);
+    console.error("unpdf extraction error:", error);
     return null;
   }
 }
