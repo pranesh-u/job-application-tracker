@@ -1,18 +1,21 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/db";
+import { prisma, getOrCreateDemoUser } from "@/lib/db";
 import fs from "fs/promises";
 import path from "path";
+
+async function getUserId(): Promise<string> {
+  const session = await auth().catch(() => null);
+  if (session?.user?.id) return session.user.id;
+  const demoUser = await getOrCreateDemoUser();
+  return demoUser.id;
+}
 
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ versionId: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+  const userId = await getUserId();
   const { versionId } = await params;
 
   const version = await prisma.resumeVersion.findUnique({
@@ -20,23 +23,33 @@ export async function GET(
     include: { resume: true },
   });
 
-  if (!version || version.resume.userId !== session.user.id) {
+  if (!version || version.resume.userId !== userId) {
     return NextResponse.json({ error: "Resume version not found" }, { status: 404 });
   }
 
   try {
-    const relativePath = version.filePath.replace(/^\//, "");
-    const fullPath = path.join(process.cwd(), "public", relativePath);
-
-    const fileBuffer = await fs.readFile(fullPath);
+    let fileBuffer: Buffer;
+    let contentType = "application/octet-stream";
     const extension = version.fileName.split(".").pop()?.toLowerCase();
 
-    let contentType = "application/octet-stream";
     if (extension === "pdf") contentType = "application/pdf";
     else if (extension === "docx")
       contentType =
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
     else if (extension === "txt") contentType = "text/plain; charset=utf-8";
+
+    if (version.filePath.startsWith("data:")) {
+      const base64Data = version.filePath.split(",")[1];
+      fileBuffer = Buffer.from(base64Data, "base64");
+    } else {
+      try {
+        const relativePath = version.filePath.replace(/^\//, "");
+        const fullPath = path.join(process.cwd(), "public", relativePath);
+        fileBuffer = await fs.readFile(fullPath);
+      } catch {
+        fileBuffer = Buffer.from(version.rawText || "No content available", "utf-8");
+      }
+    }
 
     const url = new URL(req.url);
     const download = url.searchParams.get("download") === "true";
@@ -45,7 +58,7 @@ export async function GET(
       ? `attachment; filename="${encodeURIComponent(version.fileName)}"`
       : `inline; filename="${encodeURIComponent(version.fileName)}"`;
 
-    return new NextResponse(fileBuffer, {
+    return new NextResponse(new Uint8Array(fileBuffer), {
       headers: {
         "Content-Type": contentType,
         "Content-Disposition": disposition,

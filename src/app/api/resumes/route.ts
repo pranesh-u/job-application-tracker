@@ -130,14 +130,20 @@ export async function POST(req: Request) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    const uploadDir = path.join(process.cwd(), "public", "uploads", "resumes");
-    await fs.mkdir(uploadDir, { recursive: true });
-
     const safeFileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
-    const filePathOnDisk = path.join(uploadDir, safeFileName);
-    await fs.writeFile(filePathOnDisk, buffer);
+    let relativeFilePath = `/uploads/resumes/${safeFileName}`;
 
-    const relativeFilePath = `/uploads/resumes/${safeFileName}`;
+    try {
+      const uploadDir = path.join(process.cwd(), "public", "uploads", "resumes");
+      await fs.mkdir(uploadDir, { recursive: true });
+      const filePathOnDisk = path.join(uploadDir, safeFileName);
+      await fs.writeFile(filePathOnDisk, buffer);
+    } catch (fsErr) {
+      console.warn("Serverless environment: disk write bypassed, storing as Data URL.");
+      const mimeType = file.type || "application/octet-stream";
+      relativeFilePath = `data:${mimeType};base64,${buffer.toString("base64")}`;
+    }
+
     const rawText = await extractTextFromBuffer(buffer, file.name);
 
     const newResume = await prisma.resume.create({

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/db";
+import { prisma, getOrCreateDemoUser } from "@/lib/db";
 import { extractTextFromBuffer } from "@/lib/resumeParser";
 import fs from "fs/promises";
 import path from "path";
@@ -8,15 +8,18 @@ import path from "path";
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_EXTENSIONS = ["pdf", "docx", "txt"];
 
+async function getUserId(): Promise<string> {
+  const session = await auth().catch(() => null);
+  if (session?.user?.id) return session.user.id;
+  const demoUser = await getOrCreateDemoUser();
+  return demoUser.id;
+}
+
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+  const userId = await getUserId();
   const { id: resumeId } = await params;
 
   const resume = await prisma.resume.findUnique({
@@ -24,7 +27,7 @@ export async function POST(
     include: { versions: true },
   });
 
-  if (!resume || resume.userId !== session.user.id) {
+  if (!resume || resume.userId !== userId) {
     return NextResponse.json({ error: "Resume not found" }, { status: 404 });
   }
 
@@ -54,20 +57,22 @@ export async function POST(
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // Upload directory
-    const uploadDir = path.join(process.cwd(), "public", "uploads", "resumes");
-    await fs.mkdir(uploadDir, { recursive: true });
-
     const safeFileName = `${Date.now()}_v${resume.versions.length + 1}_${file.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
-    const filePathOnDisk = path.join(uploadDir, safeFileName);
-    await fs.writeFile(filePathOnDisk, buffer);
+    let relativeFilePath = `/uploads/resumes/${safeFileName}`;
 
-    const relativeFilePath = `/uploads/resumes/${safeFileName}`;
+    try {
+      const uploadDir = path.join(process.cwd(), "public", "uploads", "resumes");
+      await fs.mkdir(uploadDir, { recursive: true });
+      const filePathOnDisk = path.join(uploadDir, safeFileName);
+      await fs.writeFile(filePathOnDisk, buffer);
+    } catch (fsErr) {
+      console.warn("Serverless environment: disk write bypassed, storing as Data URL.");
+      const mimeType = file.type || "application/octet-stream";
+      relativeFilePath = `data:${mimeType};base64,${buffer.toString("base64")}`;
+    }
 
-    // Extract text
     const rawText = await extractTextFromBuffer(buffer, file.name);
 
-    // Deactivate existing versions
     await prisma.resumeVersion.updateMany({
       where: { resumeId },
       data: { isActive: false },
@@ -76,7 +81,6 @@ export async function POST(
     const nextVersionNumber =
       resume.versions.reduce((max, v) => Math.max(max, v.versionNumber), 0) + 1;
 
-    // Create new version
     const newVersion = await prisma.resumeVersion.create({
       data: {
         resumeId,
@@ -89,7 +93,6 @@ export async function POST(
       },
     });
 
-    // Update resume timestamp
     await prisma.resume.update({
       where: { id: resumeId },
       data: { updatedAt: new Date() },
@@ -99,7 +102,7 @@ export async function POST(
   } catch (error) {
     console.error("Upload resume version error:", error);
     return NextResponse.json(
-      { error: "Failed to upload new version" },
+      { error: "Failed to upload resume version" },
       { status: 500 }
     );
   }
