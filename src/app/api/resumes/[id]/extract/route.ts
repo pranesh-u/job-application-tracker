@@ -66,11 +66,16 @@ export async function POST(
         const buffer = Buffer.from(base64Data, "base64");
         rawText = await extractTextFromBuffer(buffer, version.fileName);
       }
+    } else {
+      console.warn(`Version ${versionId} filePath is not a data URL: ${version.filePath?.substring(0, 50)}`);
     }
 
     if (!rawText) {
+      const reason = !version.filePath?.startsWith("data:")
+        ? "This resume was uploaded before serverless storage was enabled. Please re-upload the file."
+        : "PDF text extraction failed. The file may be a scanned image. Try re-uploading a text-based PDF.";
       return NextResponse.json(
-        { error: "Could not extract text from stored file. Try re-uploading the resume." },
+        { error: reason },
         { status: 422 }
       );
     }
