@@ -33,7 +33,7 @@ export async function GET() {
         orderBy: { versionNumber: "desc" },
         include: {
           applications: {
-            select: { id: true, stage: true },
+            select: { id: true, company: true, role: true, stage: true },
           },
         },
       },
@@ -77,6 +77,7 @@ export async function GET() {
         rawText: v.rawText,
         analyzedAt: v.analyzedAt,
         applicationCount: v.applications.length,
+        applications: v.applications,
       })),
       activeVersion: activeVersion
         ? {
@@ -91,6 +92,7 @@ export async function GET() {
             profileData: activeVersion.profileData,
             rawText: activeVersion.rawText,
             analyzedAt: activeVersion.analyzedAt,
+            applications: activeVersion.applications,
           }
         : null,
     };

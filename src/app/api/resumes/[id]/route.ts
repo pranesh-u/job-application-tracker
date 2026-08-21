@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/db";
+import { prisma, getOrCreateDemoUser } from "@/lib/db";
 import fs from "fs/promises";
 import path from "path";
 
@@ -12,15 +12,18 @@ const INTERVIEW_STAGES = [
   "Accepted",
 ];
 
+async function getUserId(): Promise<string> {
+  const session = await auth().catch(() => null);
+  if (session?.user?.id) return session.user.id;
+  const demoUser = await getOrCreateDemoUser();
+  return demoUser.id;
+}
+
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+  const userId = await getUserId();
   const { id } = await params;
 
   const resume = await prisma.resume.findUnique({
@@ -44,7 +47,7 @@ export async function GET(
     },
   });
 
-  if (!resume || resume.userId !== session.user.id) {
+  if (!resume || resume.userId !== userId) {
     return NextResponse.json({ error: "Resume not found" }, { status: 404 });
   }
 
@@ -73,17 +76,13 @@ export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+  const userId = await getUserId();
   const { id } = await params;
   const body = await req.json();
 
   const existingResume = await prisma.resume.findUnique({ where: { id } });
 
-  if (!existingResume || existingResume.userId !== session.user.id) {
+  if (!existingResume || existingResume.userId !== userId) {
     return NextResponse.json({ error: "Resume not found" }, { status: 404 });
   }
 
@@ -115,11 +114,7 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+  const userId = await getUserId();
   const { id } = await params;
 
   const resume = await prisma.resume.findUnique({
@@ -133,7 +128,7 @@ export async function DELETE(
     },
   });
 
-  if (!resume || resume.userId !== session.user.id) {
+  if (!resume || resume.userId !== userId) {
     return NextResponse.json({ error: "Resume not found" }, { status: 404 });
   }
 

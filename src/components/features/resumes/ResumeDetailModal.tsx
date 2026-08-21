@@ -280,6 +280,36 @@ export default function ResumeDetailModal({
                 <h4 className="text-xs font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider">
                   Raw Extracted Text (AI Matching Engine Input)
                 </h4>
+                {!selectedVersion.rawText && (
+                  <button
+                    onClick={async () => {
+                      setError("");
+                      try {
+                        const res = await fetch(`/api/resumes/${resume.id}/extract`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ versionId: selectedVersion.id }),
+                        });
+                        if (res.ok) {
+                          const data = await res.json();
+                          if (data.rawText) {
+                            setSelectedVersion({ ...selectedVersion, rawText: data.rawText });
+                          }
+                          onUpdate();
+                        } else {
+                          const data = await res.json();
+                          setError(data.error || "Failed to extract text");
+                        }
+                      } catch {
+                        setError("Failed to extract text from this file.");
+                      }
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium text-white transition-colors hover:opacity-90 cursor-pointer"
+                    style={{ background: "var(--color-accent-primary)" }}
+                  >
+                    <Code className="w-3.5 h-3.5" /> Re-Extract Text
+                  </button>
+                )}
               </div>
 
               <div className="p-4 rounded-md bg-[var(--color-bg-tertiary)] border border-[var(--color-border-secondary)] font-mono text-xs text-[var(--color-text-secondary)] whitespace-pre-wrap leading-relaxed">
@@ -287,7 +317,7 @@ export default function ResumeDetailModal({
                   selectedVersion.rawText
                 ) : (
                   <span className="text-[var(--color-text-muted)] italic">
-                    No text extracted from this file format or file is unreadable.
+                    No text extracted yet. Click &quot;Re-Extract Text&quot; above to parse the uploaded file.
                   </span>
                 )}
               </div>
