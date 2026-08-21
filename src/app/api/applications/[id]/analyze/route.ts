@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma, getOrCreateDemoUser } from "@/lib/db";
 import { analyzeResumeVsJD } from "@/lib/aiAnalyzer";
+import { extractTextFromBuffer } from "@/lib/resumeParser";
 
 async function getUserId(): Promise<string> {
   const session = await auth().catch(() => null);
@@ -29,7 +30,7 @@ export async function POST(
       return NextResponse.json({ error: "Application not found" }, { status: 404 });
     }
 
-    if (!application.jobDescription) {
+    if (!application.jobDescription || application.jobDescription.trim().length === 0) {
       return NextResponse.json(
         { error: "Please add a Job Description to run AI Match Analysis." },
         { status: 400 }
@@ -43,10 +44,31 @@ export async function POST(
       );
     }
 
-    const resumeText =
+    let resumeText =
       application.resumeVersion.rawText ||
       application.resumeVersion.profileData ||
       "";
+
+    // Auto-repair fallback: If rawText is empty, extract text on-the-fly from stored file Data URL
+    if (!resumeText || resumeText.trim().length === 0) {
+      if (application.resumeVersion.filePath?.startsWith("data:")) {
+        const base64Data = application.resumeVersion.filePath.split(",")[1];
+        if (base64Data) {
+          const buffer = Buffer.from(base64Data, "base64");
+          const extracted = await extractTextFromBuffer(
+            buffer,
+            application.resumeVersion.fileName
+          );
+          if (extracted) {
+            resumeText = extracted;
+            await prisma.resumeVersion.update({
+              where: { id: application.resumeVersion.id },
+              data: { rawText: extracted },
+            });
+          }
+        }
+      }
+    }
 
     const analysisResult = analyzeResumeVsJD(
       resumeText,
